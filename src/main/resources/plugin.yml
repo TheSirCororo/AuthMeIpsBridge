@@ -1,0 +1,8 @@
+main: ru.cororo.mcipsauth.McIpsAuth
+name: McIpsAuth
+version: 1.0.0
+description: Minecraft IPS auth with AuthMe
+author: Cororo
+depend: [ AuthMe ]
+commands:
+  fixips: {}
