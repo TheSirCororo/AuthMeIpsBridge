@@ -13,7 +13,7 @@ repositories {
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:1.20.4-R0.1-SNAPSHOT")
+    compileOnly("com.destroystokyo.paper:paper-api:1.12.2-R0.1-SNAPSHOT")
     compileOnly("fr.xephi:authme:5.6.0-SNAPSHOT")
     implementation("org.apache.httpcomponents:httpclient:4.5.14")
 }
@@ -23,5 +23,11 @@ tasks.test {
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(8)
+}
+
+tasks {
+    shadowJar {
+        archiveBaseName.set("AuthMeIpsBridge")
+    }
 }
