@@ -90,16 +90,16 @@ class McIpsAuth : JavaPlugin(), Listener {
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {
         if (!sender.hasPermission("mcipsauth.admin")) {
-            sender.sendMessage("Нет прав!")
+            sender.sendMessage(config.getString("messages.no_perms")!!)
             return false
         }
 
         if (args.isEmpty()) {
-            sender.sendMessage("/fixips [никнейм]")
+            sender.sendMessage(config.getString("messages.fixips_usage")!!)
             return false
         }
 
-        sender.sendMessage("Добавили игрока в очередь на регистрацию на форуме... Пусть он перезайдёт и войдёт в аккаунт.")
+        sender.sendMessage(config.getString("messages.fixips_success")!!)
         pendingAuth.add(args[0])
         return true
     }

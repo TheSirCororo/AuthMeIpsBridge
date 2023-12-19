@@ -2,3 +2,7 @@ forum_url: "https://exampleips.com"
 api_key: "API_KEY"
 start_group: 3
 start_validated: 1
+messages:
+  no_perms: "You have not permissions!"
+  fixips_usage: "/fixips [nickname]"
+  fixips_success: "Player was added to fix queue! Ask him to reconnect to the server and relogin with command."
