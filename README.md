@@ -5,5 +5,7 @@ If you want simple and convenient authorization on the forum through Minecraft, 
 
 See:
 https://www.spigotmc.org/resources/authme-ips-bridge-1-8-x-1-20-x.114042/
+<br/>
 https://hangar.papermc.io/TheSirCororo/AuthMeIpsBridge
-https://modrinth.com/mod/authmeipsbridge
+<br/>
+https://modrinth.com/plugin/authmeipsbridge
