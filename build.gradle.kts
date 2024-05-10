@@ -1,10 +1,10 @@
 plugins {
-    kotlin("jvm") version "1.9.21"
-    id("com.github.johnrengelman.shadow") version "7.1.2"
+    kotlin("jvm") version "1.9.24"
+    id("com.github.johnrengelman.shadow") version "8.1.1"
 }
 
 group = "space.moonstudio"
-version = "1.0-SNAPSHOT"
+version = "1.0.2"
 
 repositories {
     mavenCentral()
