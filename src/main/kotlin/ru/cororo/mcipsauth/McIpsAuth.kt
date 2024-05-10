@@ -1,14 +1,8 @@
 package ru.cororo.mcipsauth
 
-import com.google.gson.Gson
-import com.google.gson.JsonObject
 import fr.xephi.authme.api.v3.AuthMeApi
-import org.apache.http.client.HttpClient
-import org.apache.http.client.entity.UrlEncodedFormEntity
-import org.apache.http.client.methods.HttpPost
-import org.apache.http.impl.client.HttpClientBuilder
-import org.apache.http.message.BasicNameValuePair
-import org.apache.http.util.EntityUtils
+import fr.xephi.authme.events.UnregisterByAdminEvent
+import fr.xephi.authme.events.UnregisterByPlayerEvent
 import org.bukkit.command.Command
 import org.bukkit.command.CommandSender
 import org.bukkit.entity.Player
@@ -17,26 +11,32 @@ import org.bukkit.event.EventPriority
 import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.plugin.java.JavaPlugin
-import java.util.*
+
+internal lateinit var apiKey: String
 
 class McIpsAuth : JavaPlugin(), Listener {
     private lateinit var authMeApi: AuthMeApi
-    private lateinit var apiKey: String
     private lateinit var forumUrl: String
 
-    private val gson = Gson()
     private var startGroup: Int = 0
     private var startValidated: Int = 1
     private val pendingAuth = mutableListOf<String>()
 
     override fun onEnable() {
-        authMeApi = AuthMeApi.getInstance()
         saveDefaultConfig()
+
+        authMeApi = AuthMeApi.getInstance()
         apiKey = config.getString("api_key")!!
         forumUrl = config.getString("forum_url")!!
         startGroup = config.getInt("start_group")
         startValidated = config.getInt("start_validated")
         server.pluginManager.registerEvents(this, this)
+
+        Database.load()
+    }
+
+    override fun onDisable() {
+        Database.close()
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
@@ -48,60 +48,108 @@ class McIpsAuth : JavaPlugin(), Listener {
         }
 
         if (message[0].equals("/log", true) || message[0].equals("/l", true) || message[0].equals("/login", true)) {
-            if (event.player.name in pendingAuth) {
+            val forumId = Database.getForumId(event.player.name)
+            if (event.player.name in pendingAuth || forumId == null) {
                 val password = message.last()
                 register(event.player, password)
             }
         }
 
-        if (message[0].equals("changepassword", ignoreCase = true)) {
-            if (message[1].equals("help", ignoreCase = true) && message.size < 2) {
+        if (message[0].equals("/changepassword", ignoreCase = true)) {
+            if (message[1].equals("help", ignoreCase = true) || message.size < 3) {
                 return
             }
 
-
+            changePassword(event.player, message[1], message[2])
         }
+    }
+
+    @EventHandler
+    fun onUnregister(event: UnregisterByPlayerEvent) {
+        unregister(event.player)
+    }
+
+    @EventHandler
+    fun onUnregister(event: UnregisterByAdminEvent) {
+        unregister(event.player)
+    }
+
+    private fun unregister(player: Player) {
+        logger.info("Unregistering ${player.name} from forum...")
+        val forumId = Database.getForumId(player.name)
+        formRequest("$forumUrl/api/index.php?/core/members/$forumId", mapOf(), "DELETE")
     }
 
     private fun register(player: Player, password: String) {
         server.scheduler.runTaskLater(this, {
-            if (authMeApi.isAuthenticated(player)) {
-                val requestParams = mapOf(
-                    "name" to player.name,
-                    "password" to password,
-                    "group" to startGroup.toString(),
-                    "registrationIpAddress" to player.address.address.hostAddress,
-                    "validated" to startValidated.toString()
-                )
-                logger.info("Registering ${player.name} in IPS forum...")
-                val response = postRequest("$forumUrl/api/core/members", requestParams)
-                val json = try {
-                    gson.fromJson(response.replace("\n", "").trim(), JsonObject::class.java)
-                } catch (ex: ClassCastException) {
-                    logger.severe("Error occured while doing request. The message is $response.")
-                    ex.printStackTrace()
-                    return@runTaskLater
+            if (!authMeApi.isAuthenticated(player)) return@runTaskLater
+
+            val requestParams = mapOf(
+                "name" to player.name,
+                "password" to password,
+                "group" to startGroup.toString(),
+                "registrationIpAddress" to player.address.address.hostAddress,
+                "validated" to startValidated.toString()
+            )
+
+            logger.info("Registering ${player.name} in IPS forum...")
+            val response = formRequest("$forumUrl/api/index.php?/core/members", requestParams)
+            val json = response.asJsonObject() ?: run {
+                logger.severe("Error occured while handling response: $response")
+                return@runTaskLater
+            }
+
+            try {
+                if (json.has("errorMessage")) {
+                    logger.severe("Register error! Message is ${json.get("errorMessage").asString}")
+                } else {
+                    val id = json.getAsJsonPrimitive("id").asLong
+                    Database.addUser(player.name, id)
+
+                    logger.info("Player ${player.name} was registered successfully with id $id!")
                 }
-                try {
-                    if (json.has("errorMessage")) {
-                        logger.severe("Register error! Message is ${json.get("errorMessage").asString}")
-                    } else {
-                        logger.info("Player ${player.name} was registered successfully!")
-                    }
-                } catch (ex: Exception) {
-                    logger.severe("Register error!")
-                    ex.printStackTrace()
-                }
+            } catch (ex: Exception) {
+                logger.severe("Register error!")
+                ex.printStackTrace()
             }
         }, 20L)
     }
 
-    private fun postRequest(url: String, formData: Map<String, String>): String {
-        val httpClient: HttpClient = HttpClientBuilder.create().build()
-        val httpPost = HttpPost(url)
-        httpPost.addHeader("Authorization", "Basic ${Base64.getEncoder().encodeToString("$apiKey:".toByteArray())}")
-        httpPost.entity = UrlEncodedFormEntity(formData.map { BasicNameValuePair(it.key, it.value) })
-        return EntityUtils.toString(httpClient.execute(httpPost).entity)
+    private fun changePassword(player: Player, oldPassword: String, newPassword: String) {
+        if (oldPassword == newPassword) return
+
+        server.scheduler.runTaskLater(this, {
+            if (!authMeApi.isAuthenticated(player)) return@runTaskLater
+
+            logger.info("Changing password for ${player.name} on IPS forum...")
+
+            val forumId = Database.getForumId(player.name)
+            if (forumId == null) {
+                logger.warning("Player ${player.name} was not found on table!")
+                return@runTaskLater
+            }
+
+            val parameters = mapOf(
+                "password" to newPassword
+            )
+
+            val response = formRequest("$forumUrl/api/index.php?/core/members/$forumId", parameters)
+            val json = response.asJsonObject() ?: run {
+                logger.severe("Error occured while handling response: $response")
+                return@runTaskLater
+            }
+
+            try {
+                if (json.has("errorMessage")) {
+                    logger.severe("Password change error! Message is ${json.get("errorMessage").asString}")
+                } else {
+                    logger.info("Player ${player.name} changed password successfully!")
+                }
+            } catch (ex: Exception) {
+                logger.severe("Password change error!")
+                ex.printStackTrace()
+            }
+        }, 10L)
     }
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<String>): Boolean {

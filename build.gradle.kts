@@ -15,7 +15,8 @@ repositories {
 dependencies {
     compileOnly("com.destroystokyo.paper:paper-api:1.12.2-R0.1-SNAPSHOT")
     compileOnly("fr.xephi:authme:5.6.0-SNAPSHOT")
-    implementation("org.apache.httpcomponents:httpclient:4.5.14")
+    implementation(kotlin("stdlib"))
+    runtimeOnly("com.h2database:h2:2.2.224")
 }
 
 tasks.test {
@@ -23,7 +24,11 @@ tasks.test {
 }
 
 kotlin {
-    jvmToolchain(8)
+    jvmToolchain(11)
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(11)
 }
 
 tasks {

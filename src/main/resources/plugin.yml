@@ -1,5 +1,5 @@
 main: ru.cororo.mcipsauth.McIpsAuth
-name: McIpsAuth
+name: AuthMeIpsBridge
 version: 1.0.2
 description: Minecraft IPS auth with AuthMe
 author: Cororo
