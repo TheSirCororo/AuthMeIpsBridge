@@ -19,11 +19,12 @@ import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.plugin.java.JavaPlugin
 import java.util.*
 
-
 class McIpsAuth : JavaPlugin(), Listener {
     private lateinit var authMeApi: AuthMeApi
     private lateinit var apiKey: String
     private lateinit var forumUrl: String
+
+    private val gson = Gson()
     private var startGroup: Int = 0
     private var startValidated: Int = 1
     private val pendingAuth = mutableListOf<String>()
@@ -45,17 +46,26 @@ class McIpsAuth : JavaPlugin(), Listener {
             val password = message.last()
             register(event.player, password)
         }
+
         if (message[0].equals("/log", true) || message[0].equals("/l", true) || message[0].equals("/login", true)) {
             if (event.player.name in pendingAuth) {
                 val password = message.last()
                 register(event.player, password)
             }
         }
+
+        if (message[0].equals("changepassword", ignoreCase = true)) {
+            if (message[1].equals("help", ignoreCase = true) && message.size < 2) {
+                return
+            }
+
+
+        }
     }
 
     private fun register(player: Player, password: String) {
-        server.scheduler.runTaskLater(this, Runnable {
-            if (authMeApi.isRegistered(player.name)) {
+        server.scheduler.runTaskLater(this, {
+            if (authMeApi.isAuthenticated(player)) {
                 val requestParams = mapOf(
                     "name" to player.name,
                     "password" to password,
@@ -65,7 +75,13 @@ class McIpsAuth : JavaPlugin(), Listener {
                 )
                 logger.info("Registering ${player.name} in IPS forum...")
                 val response = postRequest("$forumUrl/api/core/members", requestParams)
-                val json = Gson().fromJson(response.replace("\n", "").trim(), JsonObject::class.java).asJsonObject
+                val json = try {
+                    gson.fromJson(response.replace("\n", "").trim(), JsonObject::class.java)
+                } catch (ex: ClassCastException) {
+                    logger.severe("Error occured while doing request. The message is $response.")
+                    ex.printStackTrace()
+                    return@runTaskLater
+                }
                 try {
                     if (json.has("errorMessage")) {
                         logger.severe("Register error! Message is ${json.get("errorMessage").asString}")

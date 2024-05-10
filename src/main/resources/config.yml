@@ -1,7 +1,12 @@
+# Root url of forum
 forum_url: "https://exampleips.com"
+# API key from REST API settings in IPS
 api_key: "API_KEY"
+# ID of group which will be given to the player on registration
 start_group: 3
+# Should the plugin mark the forum user as validated from start
 start_validated: 1
+
 messages:
   no_perms: "You have not permissions!"
   fixips_usage: "/fixips [nickname]"
