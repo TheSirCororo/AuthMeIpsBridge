@@ -12,24 +12,24 @@ import org.bukkit.event.Listener
 import org.bukkit.event.player.PlayerCommandPreprocessEvent
 import org.bukkit.plugin.java.JavaPlugin
 
-internal lateinit var apiKey: String
+internal lateinit var parsedConfig: Config
 
 class McIpsAuth : JavaPlugin(), Listener {
     private lateinit var authMeApi: AuthMeApi
-    private lateinit var forumUrl: String
 
-    private var startGroup: Int = 0
-    private var startValidated: Int = 1
     private val pendingAuth = mutableListOf<String>()
 
     override fun onEnable() {
         saveDefaultConfig()
 
         authMeApi = AuthMeApi.getInstance()
-        apiKey = config.getString("api_key")!!
-        forumUrl = config.getString("forum_url")!!
-        startGroup = config.getInt("start_group")
-        startValidated = config.getInt("start_validated")
+        parsedConfig = Config(
+            apiKey = config.getString("api_key")!!,
+            forumUrl = config.getString("forum_url")!!,
+            startGroup = config.getInt("start_group"),
+            startValidated = config.getInt("start_validated")
+        )
+
         server.pluginManager.registerEvents(this, this)
 
         Database.load()
@@ -39,19 +39,30 @@ class McIpsAuth : JavaPlugin(), Listener {
         Database.close()
     }
 
-    @EventHandler(priority = EventPriority.LOWEST)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     fun onCommand(event: PlayerCommandPreprocessEvent) {
         val message = event.message.split(" ")
-        if (message[0].equals("/register", true) || message[0].equals("/reg", true)) {
-            val password = message.last()
-            register(event.player, password)
-        }
 
-        if (message[0].equals("/log", true) || message[0].equals("/l", true) || message[0].equals("/login", true)) {
-            val forumId = Database.getForumId(event.player.name)
-            if (event.player.name in pendingAuth || forumId == null) {
+        when (message[0].lowercase()) {
+            "/register, /reg" -> {
                 val password = message.last()
                 register(event.player, password)
+            }
+
+            "/log", "/l", "/login" -> {
+                val forumId = Database.getForumId(event.player.name)
+                if (event.player.name in pendingAuth || forumId == null) {
+                    val password = message.last()
+                    register(event.player, password)
+                }
+            }
+
+            "/changepassword" -> {
+                if (message[1].equals("help", ignoreCase = true) || message.size < 3) {
+                    return
+                }
+
+                changePassword(event.player, message[1], message[2])
             }
         }
 
@@ -77,7 +88,8 @@ class McIpsAuth : JavaPlugin(), Listener {
     private fun unregister(player: Player) {
         logger.info("Unregistering ${player.name} from forum...")
         val forumId = Database.getForumId(player.name)
-        formRequest("$forumUrl/api/index.php?/core/members/$forumId", mapOf(), "DELETE")
+        formRequest("${parsedConfig.forumUrl}/api/index.php?/core/members/$forumId", mapOf(), "DELETE")
+        Database.removeUser(player.name)
     }
 
     private fun register(player: Player, password: String) {
@@ -87,13 +99,13 @@ class McIpsAuth : JavaPlugin(), Listener {
             val requestParams = mapOf(
                 "name" to player.name,
                 "password" to password,
-                "group" to startGroup.toString(),
+                "group" to parsedConfig.startGroup.toString(),
                 "registrationIpAddress" to player.address.address.hostAddress,
-                "validated" to startValidated.toString()
+                "validated" to parsedConfig.startValidated.toString()
             )
 
             logger.info("Registering ${player.name} in IPS forum...")
-            val response = formRequest("$forumUrl/api/index.php?/core/members", requestParams)
+            val response = formRequest("${parsedConfig.forumUrl}/api/index.php?/core/members", requestParams)
             val json = response.asJsonObject() ?: run {
                 logger.severe("Error occured while handling response: $response")
                 return@runTaskLater
@@ -129,11 +141,9 @@ class McIpsAuth : JavaPlugin(), Listener {
                 return@runTaskLater
             }
 
-            val parameters = mapOf(
-                "password" to newPassword
-            )
+            val parameters = mapOf("password" to newPassword)
 
-            val response = formRequest("$forumUrl/api/index.php?/core/members/$forumId", parameters)
+            val response = formRequest("${parsedConfig.forumUrl}/api/index.php?/core/members/$forumId", parameters)
             val json = response.asJsonObject() ?: run {
                 logger.severe("Error occured while handling response: $response")
                 return@runTaskLater
@@ -168,3 +178,10 @@ class McIpsAuth : JavaPlugin(), Listener {
         return true
     }
 }
+
+internal data class Config(
+    val apiKey: String,
+    val forumUrl: String,
+    val startGroup: Int,
+    val startValidated: Int,
+)

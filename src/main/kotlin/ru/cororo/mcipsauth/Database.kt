@@ -16,40 +16,43 @@ object Database : Closeable {
             ""
         )
 
-        val statement = connection.createStatement()
-        statement.executeUpdate(
-            "CREATE TABLE IF NOT EXISTS `forum_users` (" +
-                    "`username` VARCHAR(16) NOT NULL PRIMARY KEY," +
-                    "`forum_id` BIGINT NOT NULL);"
-        )
-
-        statement.close()
-    }
-
-    fun addUser(username: String, forumId: Long) {
-        val prepareStatement =
-            connection.prepareStatement("INSERT INTO `forum_users` (username, forum_id) VALUES (?, ?);")
-        prepareStatement.setString(1, username)
-        prepareStatement.setLong(2, forumId)
-        prepareStatement.executeUpdate()
-    }
-
-    fun getForumId(username: String): Long? {
-        val prepareStatement = connection.prepareStatement("SELECT `forum_id` FROM `forum_users` WHERE `username`=?;")
-        prepareStatement.setString(1, username)
-        return try {
-            val rs = prepareStatement.executeQuery()
-            rs.next()
-            rs.getLong("forum_id")
-        } catch (ex: Exception) {
-            null
+        connection.createStatement().use { statement ->
+            statement.executeUpdate(
+                "CREATE TABLE IF NOT EXISTS `forum_users` (" +
+                        "`username` VARCHAR(16) NOT NULL PRIMARY KEY," +
+                        "`forum_id` BIGINT NOT NULL);"
+            )
         }
     }
 
+    fun addUser(username: String, forumId: Long) {
+        connection.prepareStatement("INSERT INTO `forum_users` (username, forum_id) VALUES (?, ?)")
+            .use { preparedStatement ->
+                preparedStatement.setString(1, username)
+                preparedStatement.setLong(2, forumId)
+                preparedStatement.executeUpdate()
+            }
+    }
+
+    fun getForumId(username: String): Long? {
+        connection.prepareStatement("SELECT `forum_id` FROM `forum_users` WHERE `username`=?")
+            .use { preparedStatement ->
+                preparedStatement.setString(1, username)
+                return try {
+                    val rs = preparedStatement.executeQuery()
+                    rs.next()
+                    rs.getLong("forum_id")
+                } catch (_: Exception) {
+                    null
+                }
+            }
+    }
+
     fun removeUser(username: String) {
-        val preparedStatement = connection.prepareStatement("DELETE FROM `forum_users` WHERE `username`=?;")
-        preparedStatement.setString(1, username)
-        preparedStatement.executeUpdate()
+        connection.prepareStatement("DELETE FROM `forum_users` WHERE `username`=?").use { preparedStatement ->
+            preparedStatement.setString(1, username)
+            preparedStatement.executeUpdate()
+        }
     }
 
     override fun close() {

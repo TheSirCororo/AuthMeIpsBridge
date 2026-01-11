@@ -1,6 +1,6 @@
 plugins {
-    kotlin("jvm") version "1.9.24"
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    kotlin("jvm") version "2.3.0"
+    id("com.gradleup.shadow") version "9.3.1"
 }
 
 group = "space.moonstudio"
@@ -16,7 +16,7 @@ dependencies {
     compileOnly("com.destroystokyo.paper:paper-api:1.12.2-R0.1-SNAPSHOT")
     compileOnly("fr.xephi:authme:5.6.0-SNAPSHOT")
     implementation(kotlin("stdlib"))
-    runtimeOnly("com.h2database:h2:2.2.224")
+    runtimeOnly("com.h2database:h2:2.4.240")
 }
 
 tasks.test {
