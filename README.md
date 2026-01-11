@@ -3,9 +3,7 @@ With its help, a player who has newly created an account on the server automatic
 
 If you want simple and convenient authorization on the forum through Minecraft, this plugin is for you!
 
-See:
-https://www.spigotmc.org/resources/authme-ips-bridge-1-8-x-1-20-x.114042/
-<br/>
-https://hangar.papermc.io/TheSirCororo/AuthMeIpsBridge
-<br/>
-https://modrinth.com/plugin/authmeipsbridge
+Plugin pages:
+- [Spigot](https://www.spigotmc.org/resources/authme-ips-bridge-1-8-x-1-20-x.114042/)
+- [Hangar](https://hangar.papermc.io/TheSirCororo/AuthMeIpsBridge)
+- [Modrinth](https://modrinth.com/plugin/authmeipsbridge)
