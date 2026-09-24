@@ -1,20 +1,20 @@
 package ru.cororo.mcipsauth
 
-import org.bukkit.Bukkit
 import java.io.Closeable
+import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
 
-object Database : Closeable {
-    private lateinit var connection: Connection
+/**
+ * Maps Minecraft usernames to IPS member ids. Methods are synchronized because they are called
+ * from async scheduler threads.
+ */
+internal class Database(file: File) : Closeable {
+    private val connection: Connection
 
-    fun load() {
+    init {
         Class.forName("org.h2.Driver")
-        connection = DriverManager.getConnection(
-            "jdbc:h2:${Bukkit.getWorldContainer().absolutePath}/plugins/AuthMeIpsBridge/database.h2",
-            "sa",
-            ""
-        )
+        connection = DriverManager.getConnection("jdbc:h2:${file.absolutePath}", "sa", "")
 
         connection.createStatement().use { statement ->
             statement.executeUpdate(
@@ -25,8 +25,10 @@ object Database : Closeable {
         }
     }
 
-    fun addUser(username: String, forumId: Long) {
-        connection.prepareStatement("INSERT INTO `forum_users` (username, forum_id) VALUES (?, ?)")
+    /** Inserts the mapping or replaces an existing one (e.g. after /fixips re-registration). */
+    @Synchronized
+    fun setForumId(username: String, forumId: Long) {
+        connection.prepareStatement("MERGE INTO `forum_users` (username, forum_id) KEY (username) VALUES (?, ?)")
             .use { preparedStatement ->
                 preparedStatement.setString(1, username)
                 preparedStatement.setLong(2, forumId)
@@ -34,20 +36,18 @@ object Database : Closeable {
             }
     }
 
+    @Synchronized
     fun getForumId(username: String): Long? {
         connection.prepareStatement("SELECT `forum_id` FROM `forum_users` WHERE `username`=?")
             .use { preparedStatement ->
                 preparedStatement.setString(1, username)
-                return try {
-                    val rs = preparedStatement.executeQuery()
-                    rs.next()
-                    rs.getLong("forum_id")
-                } catch (_: Exception) {
-                    null
+                preparedStatement.executeQuery().use { rs ->
+                    return if (rs.next()) rs.getLong("forum_id") else null
                 }
             }
     }
 
+    @Synchronized
     fun removeUser(username: String) {
         connection.prepareStatement("DELETE FROM `forum_users` WHERE `username`=?").use { preparedStatement ->
             preparedStatement.setString(1, username)
@@ -55,6 +55,7 @@ object Database : Closeable {
         }
     }
 
+    @Synchronized
     override fun close() {
         connection.close()
     }

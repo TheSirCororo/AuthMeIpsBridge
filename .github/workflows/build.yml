@@ -1,0 +1,82 @@
+name: Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # 11 is the project toolchain, 21 runs Gradle itself
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: |
+            11
+            21
+
+      - uses: gradle/actions/setup-gradle@v6
+
+      - name: Build and test
+        run: ./gradlew build shadowJar -Porg.gradle.java.installations.fromEnv=JAVA_HOME_11_X64
+
+      - name: Read version
+        id: version
+        run: |
+          echo "version=$(./gradlew properties -q --console=plain | sed -n 's/^version: //p')" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: AuthMeIpsBridge-${{ steps.version.outputs.version }}
+          path: build/libs/AuthMeIpsBridge-*-all.jar
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: test-reports
+          path: build/reports/tests/
+
+  # Publishes a release for every new version pushed to master; tag and title match the earlier manual releases
+  release:
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: AuthMeIpsBridge-${{ needs.build.outputs.version }}
+
+      - name: Publish release
+        run: |
+          if [[ -z "$VERSION" || "$VERSION" == *SNAPSHOT* ]]; then
+            echo "Version '$VERSION' is not a release version, skipping"
+            exit 0
+          fi
+          if gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 \
+            || git ls-remote --exit-code --tags "https://github.com/$GITHUB_REPOSITORY.git" "refs/tags/$VERSION" > /dev/null; then
+            echo "Tag $VERSION already exists, skipping"
+            exit 0
+          fi
+          gh release create "$VERSION" "AuthMeIpsBridge-$VERSION-all.jar" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Version $VERSION" \
+            --generate-notes
