@@ -1,6 +1,6 @@
-# Root url of forum
+# Root url of forum. Use https:// - the API key and player passwords are sent to this address
 forum_url: "https://exampleips.com"
-# API key from REST API settings in IPS
+# API key from REST API settings in IPS. Allow it only the /core/members endpoints
 api_key: "API_KEY"
 # ID of group which will be given to the player on registration
 start_group: 3

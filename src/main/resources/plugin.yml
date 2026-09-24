@@ -1,8 +1,13 @@
 main: ru.cororo.mcipsauth.McIpsAuth
 name: AuthMeIpsBridge
-version: 1.0.2
+version: ${version}
 description: Minecraft IPS auth with AuthMe
 author: Cororo
 depend: [ AuthMe ]
 commands:
-  fixips: {}
+  fixips:
+    description: Register the player on the forum again on their next login
+permissions:
+  mcipsauth.admin:
+    description: Allows /fixips
+    default: op
